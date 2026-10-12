@@ -1,4 +1,29 @@
 
+const WEBTOON_GENRES = [
+  ["Acción", "action"],
+  ["Comedia", "comedy"],
+  ["Drama", "drama"],
+  ["Fantasía", "fantasy"],
+  ["Reconfortante", "heartwarming"],
+  ["Histórico", "historical"],
+  ["Terror", "horror"],
+  ["Misterio", "mystery"],
+  ["Romance", "romance"],
+  ["Ciencia ficción", "sf"],
+  ["Vida cotidiana", "slice_of_life"],
+  ["Deportes", "sports"],
+  ["Superhéroes", "super_hero"],
+  ["Sobrenatural", "supernatural"],
+  ["Suspenso", "thriller"],
+  ["Consejos", "tiptoon"]
+];
+
+const WEBTOON_SORT_OPTIONS = [
+  ["Popularidad", "MANA"],
+  ["Actualizaciones recientes", "UPDATE"],
+  ["Me gusta", "LIKEIT"]
+];
+
 const mangayomiSources = [
   {
     name: "WEBTOON Español",
@@ -12,11 +37,11 @@ const mangayomiSources = [
     itemType: 0,
     isManga: true,
     isNsfw: false,
-    version: "0.1.2",
+    version: "0.2.0",
     dateFormat: "",
     dateFormatLocale: "",
     pkgPath: "manga/src/es/webtoon.js",
-    notes: "WEBTOON Español. Extracción experimental de episodios."
+    notes: "WEBTOON Español. Filtros de género y ordenamiento."
   }
 ];
 
@@ -126,6 +151,16 @@ class DefaultExtension extends MProvider {
     return list;
   }
 
+  buildGenreUrl(genre, sort) {
+    return (
+      this.baseUrl +
+      "/es/genres/" +
+      encodeURIComponent(genre) +
+      "?sortOrder=" +
+      encodeURIComponent(sort)
+    );
+  }
+
   async getPopular(page) {
     if (page > 1) {
       return {
@@ -134,11 +169,9 @@ class DefaultExtension extends MProvider {
       };
     }
 
-    const url =
-      this.baseUrl +
-      "/es/genres/fantasy?sortOrder=MANA";
-
-    const doc = await this.fetchDocument(url);
+    const doc = await this.fetchDocument(
+      this.buildGenreUrl("fantasy", "MANA")
+    );
 
     return {
       list: this.parseCards(
@@ -161,11 +194,9 @@ class DefaultExtension extends MProvider {
       };
     }
 
-    const url =
-      this.baseUrl +
-      "/es/genres/fantasy?sortOrder=UPDATE";
-
-    const doc = await this.fetchDocument(url);
+    const doc = await this.fetchDocument(
+      this.buildGenreUrl("fantasy", "UPDATE")
+    );
 
     return {
       list: this.parseCards(
@@ -176,34 +207,100 @@ class DefaultExtension extends MProvider {
     };
   }
 
+  getSelectedValue(filter) {
+    if (!filter || !Array.isArray(filter.values)) {
+      return "";
+    }
+
+    const index = Number(filter.state || 0);
+    const selected = filter.values[index];
+
+    return selected
+      ? String(selected.value ?? "")
+      : "";
+  }
+
+  getSearchFilters(filters) {
+    const selected = {
+      genre: "fantasy",
+      sort: "MANA"
+    };
+
+    const filterList = Array.isArray(filters)
+      ? filters
+      : Array.isArray(filters?.filters)
+        ? filters.filters
+        : [];
+
+    for (const filter of filterList) {
+      if (!filter || filter.type_name !== "SelectFilter") {
+        continue;
+      }
+
+      const value = this.getSelectedValue(filter);
+
+      if (filter.name === "Género" && value) {
+        selected.genre = value;
+      }
+
+      if (filter.name === "Ordenar por" && value) {
+        selected.sort = value;
+      }
+    }
+
+    return selected;
+  }
+
   async search(query, page, filters) {
     const keyword = (query || "").trim();
 
-    if (!keyword) {
-      return this.getPopular(page);
+    if (keyword) {
+      const url =
+        this.baseUrl +
+        "/es/search?keyword=" +
+        encodeURIComponent(keyword) +
+        "&page=" +
+        page;
+
+      const doc = await this.fetchDocument(url);
+
+      const list = this.parseCards(
+        doc,
+        "a.link._card_item"
+      );
+
+      return {
+        list,
+        hasNextPage:
+          list.length > 0 &&
+          doc.select(
+            "a[href*='page=" + (page + 1) + "']"
+          ).length > 0
+      };
     }
 
-    const url =
-      this.baseUrl +
-      "/es/search?keyword=" +
-      encodeURIComponent(keyword) +
-      "&page=" +
-      page;
+    if (page > 1) {
+      return {
+        list: [],
+        hasNextPage: false
+      };
+    }
 
-    const doc = await this.fetchDocument(url);
+    const selected = this.getSearchFilters(filters);
 
-    const list = this.parseCards(
-      doc,
-      "a.link._card_item"
+    const doc = await this.fetchDocument(
+      this.buildGenreUrl(
+        selected.genre,
+        selected.sort
+      )
     );
 
     return {
-      list,
-      hasNextPage:
-        list.length > 0 &&
-        doc.select(
-          "a[href*='page=" + (page + 1) + "']"
-        ).length > 0
+      list: this.parseCards(
+        doc,
+        "a.link._genre_title_a"
+      ),
+      hasNextPage: false
     };
   }
 
@@ -316,8 +413,8 @@ class DefaultExtension extends MProvider {
       }
     }
 
-    // v0.1.2: prueba con los enlaces directos
-    // de episodios de la primera página.
+    // Conservar la extracción de episodios
+    // que funcionó en la versión 0.1.2.
     const seen = new Set();
     const episodes = this.parseEpisodes(doc, seen);
 
@@ -362,6 +459,20 @@ class DefaultExtension extends MProvider {
   }
 
   getFilterList() {
-    return [];
+    const select = (name, entries, defaultIndex = 0) => ({
+      type_name: "SelectFilter",
+      name,
+      state: defaultIndex,
+      values: entries.map(entry => ({
+        type_name: "SelectOption",
+        name: entry[0],
+        value: entry[1]
+      }))
+    });
+
+    return [
+      select("Género", WEBTOON_GENRES, 3),
+      select("Ordenar por", WEBTOON_SORT_OPTIONS, 0)
+    ];
   }
 }
