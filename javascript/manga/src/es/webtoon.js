@@ -12,11 +12,11 @@ const mangayomiSources = [
     itemType: 0,
     isManga: true,
     isNsfw: false,
-    version: "0.1.0",
+    version: "0.1.1",
     dateFormat: "",
     dateFormatLocale: "",
     pkgPath: "manga/src/es/webtoon.js",
-    notes: "WEBTOON Español. Versión experimental."
+    notes: "WEBTOON Español. Prueba de extracción de episodios."
   }
 ];
 
@@ -64,7 +64,9 @@ class DefaultExtension extends MProvider {
   getLink(element) {
     if (!element) return "";
     return this.absoluteUrl(
-      element.attr("href") || element.getHref || ""
+      element.attr("href") ||
+      element.getHref ||
+      ""
     );
   }
 
@@ -73,6 +75,7 @@ class DefaultExtension extends MProvider {
       url,
       this.getHeaders()
     );
+
     return new Document(response.body);
   }
 
@@ -82,10 +85,15 @@ class DefaultExtension extends MProvider {
 
     for (const element of doc.select(selector)) {
       const link = this.getLink(element);
-      if (!link || !link.includes("title_no=")) continue;
+
+      if (!link || !link.includes("title_no=")) {
+        continue;
+      }
+
       if (seen.has(link)) continue;
 
       const image = element.selectFirst("img");
+
       const titleElement =
         element.selectFirst(".title") ||
         element.selectFirst("strong.title") ||
@@ -189,8 +197,11 @@ class DefaultExtension extends MProvider {
 
     return {
       list,
-      hasNextPage: list.length > 0 &&
-        doc.select("a[href*='page=" + (page + 1) + "']").length > 0
+      hasNextPage:
+        list.length > 0 &&
+        doc.select(
+          "a[href*='page=" + (page + 1) + "']"
+        ).length > 0
     };
   }
 
@@ -234,8 +245,6 @@ class DefaultExtension extends MProvider {
 
       if (seen.has(link)) continue;
 
-      // No incluir episodios que se anuncien como
-      // bloqueados o exclusivos de la aplicación.
       const locked =
         element.selectFirst(".detail_paywall") ||
         element.selectFirst(".ico_lock") ||
@@ -258,6 +267,7 @@ class DefaultExtension extends MProvider {
 
       if (!name) {
         const match = link.match(/episode_no=(\d+)/);
+
         name = match
           ? "Episodio " + match[1]
           : "Episodio";
@@ -312,45 +322,17 @@ class DefaultExtension extends MProvider {
 
     for (const element of genreElements) {
       const value = this.cleanText(element.text);
+
       if (value && !genre.includes(value)) {
         genre.push(value);
       }
     }
 
+    // Versión 0.1.1:
+    // Extraer únicamente la primera página
+    // para aislar el problema de capítulos.
     const seen = new Set();
-    const episodes = [];
-
-    // WEBTOON divide los episodios en páginas.
-    // Se detiene cuando una página no devuelve
-    // episodios nuevos.
-    for (let page = 1; page <= 100; page++) {
-      let pageDoc;
-
-      if (page === 1) {
-        pageDoc = doc;
-      } else {
-        const separator = seriesUrl.includes("?")
-          ? "&"
-          : "?";
-
-        const pageUrl =
-          seriesUrl +
-          separator +
-          "page=" +
-          page;
-
-        pageDoc = await this.fetchDocument(pageUrl);
-      }
-
-      const newEpisodes =
-        this.parseEpisodes(pageDoc, seen);
-
-      if (newEpisodes.length === 0) break;
-
-      episodes.push(...newEpisodes);
-
-      if (newEpisodes.length < 9) break;
-    }
+    const episodes = this.parseEpisodes(doc, seen);
 
     return {
       name: title,
