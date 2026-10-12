@@ -8,7 +8,7 @@ const mangayomiSources = [
     iconUrl: "https://manhwaweb.com/favicon.ico",
     typeSource: "single",
     itemType: 0,
-    version: "0.1.1",
+    version: "0.1.2",
     pkgPath: "manga/src/es/manhwaweb.js",
     notes: "Fuente en español. Incluye contenido para adultos.",
     isNsfw: true
@@ -85,7 +85,6 @@ class DefaultExtension extends MProvider {
     `?page=${pageIndex}`;
 
     const json = await this.fetchJson(url);
-
     return this.parseMangaList(json);
   }
 
@@ -103,7 +102,6 @@ class DefaultExtension extends MProvider {
     `&page=${pageIndex}`;
 
     const json = await this.fetchJson(url);
-
     return this.parseMangaList(json);
   }
 
@@ -116,8 +114,27 @@ class DefaultExtension extends MProvider {
     `&page=${pageIndex}`;
 
     const json = await this.fetchJson(url);
-
     return this.parseMangaList(json);
+  }
+
+  getStatus(status) {
+    const normalized = String(status || "")
+    .trim()
+    .toLowerCase();
+
+    const statusMap = {
+      finalizado: 1,
+      completado: 1,
+      completo: 1,
+      publicandose: 0,
+        "publicándose": 0,
+        encurso: 0,
+        pendiente: 2,
+        pausado: 2,
+        cancelado: 3
+    };
+
+    return statusMap[normalized] ?? 5;
   }
 
   async getDetail(url) {
@@ -144,12 +161,6 @@ class DefaultExtension extends MProvider {
     .map(author => author.name)
     .filter(Boolean);
 
-    const statusMap = {
-      finalizado: "Completed",
-      publicandose: "Ongoing",
-        pendiente: "On Hiatus"
-    };
-
     const genre = [
       data._tipo,
       data._demografi
@@ -164,19 +175,11 @@ class DefaultExtension extends MProvider {
       data.name_esp ||
       data.the_real_name ||
       "Sin título",
-
       description: data._sinopsis || "",
-
       imageUrl: data._imagen || "",
-
-      status:
-      statusMap[data._status] ||
-      "Unknown",
-
+      status: this.getStatus(data._status),
       author: authors.join(", "),
-
       genre,
-
       chapters
     };
   }
