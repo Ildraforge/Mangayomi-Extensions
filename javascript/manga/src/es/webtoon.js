@@ -37,11 +37,11 @@ const mangayomiSources = [
     itemType: 0,
     isManga: true,
     isNsfw: false,
-    version: "0.2.0",
+    version: "0.3.0",
     dateFormat: "",
     dateFormatLocale: "",
     pkgPath: "manga/src/es/webtoon.js",
-    notes: "WEBTOON Español. Filtros de género y ordenamiento."
+    notes: "WEBTOON Español. Filtros y paginación de capítulos."
   }
 ];
 
@@ -373,6 +373,85 @@ class DefaultExtension extends MProvider {
     return episodes;
   }
 
+  buildEpisodePageUrl(seriesUrl, page) {
+    const url = seriesUrl.split("#")[0].split("?")[0];
+    const titleMatch = seriesUrl.match(/[?&]title_no=(\d+)/);
+
+    if (!titleMatch) {
+      return "";
+    }
+
+    return (
+      url +
+      "?title_no=" +
+      titleMatch[1] +
+      "&page=" +
+      page
+    );
+  }
+
+  hasEpisodeNextPage(doc, currentPage) {
+    const nextPage = currentPage + 1;
+
+    for (const anchor of doc.select(
+      ".paginate a[href*='page=']"
+    )) {
+      const href = this.getAttribute(anchor, "href");
+      const match = href.match(/[?&]page=(\d+)/);
+
+      if (match && Number(match[1]) === nextPage) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  async getAllEpisodes(seriesUrl, firstDoc) {
+    const seen = new Set();
+    const episodes = this.parseEpisodes(firstDoc, seen);
+
+    const maxPages = 200;
+    let currentDoc = firstDoc;
+    let currentPage = 1;
+
+    while (
+      currentPage < maxPages &&
+      this.hasEpisodeNextPage(currentDoc, currentPage)
+    ) {
+      const nextPage = currentPage + 1;
+      const nextUrl = this.buildEpisodePageUrl(
+        seriesUrl,
+        nextPage
+      );
+
+      if (!nextUrl) break;
+
+      let nextDoc;
+
+      try {
+        nextDoc = await this.fetchDocument(nextUrl);
+      } catch (error) {
+        break;
+      }
+
+      const newEpisodes = this.parseEpisodes(
+        nextDoc,
+        seen
+      );
+
+      if (newEpisodes.length === 0) {
+        break;
+      }
+
+      episodes.push(...newEpisodes);
+      currentDoc = nextDoc;
+      currentPage = nextPage;
+    }
+
+    return episodes;
+  }
+
   async getDetail(url) {
     const seriesUrl = this.absoluteUrl(url);
     const doc = await this.fetchDocument(seriesUrl);
@@ -413,10 +492,10 @@ class DefaultExtension extends MProvider {
       }
     }
 
-    // Conservar la extracción de episodios
-    // que funcionó en la versión 0.1.2.
-    const seen = new Set();
-    const episodes = this.parseEpisodes(doc, seen);
+    const episodes = await this.getAllEpisodes(
+      seriesUrl,
+      doc
+    );
 
     return {
       name: title,
