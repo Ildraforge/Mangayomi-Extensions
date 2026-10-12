@@ -13,7 +13,7 @@
     "hasCloudflare": false,
     "sourceCodeUrl": "https://raw.githubusercontent.com/Ildraforge/Mangayomi-ManhwaWeb/main/javascript/manga/src/es/manhwaweb.js",
     "apiUrl": "https://api.manhwaweb.com",
-    "version": "0.1.3",
+    "version": "0.1.4",
     "isManga": true,
     "itemType": 0,
     "isFullData": false,

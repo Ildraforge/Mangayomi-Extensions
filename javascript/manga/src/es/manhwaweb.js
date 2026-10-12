@@ -8,7 +8,7 @@ const mangayomiSources = [
     iconUrl: "https://manhwaweb.com/favicon.ico",
     typeSource: "single",
     itemType: 0,
-    version: "0.1.3",
+    version: "0.1.4",
     pkgPath: "manga/src/es/manhwaweb.js",
     notes: "Fuente en español. Incluye contenido para adultos.",
     isNsfw: true
@@ -111,10 +111,8 @@ class DefaultExtension extends MProvider {
     const pageIndex = Math.max(0, Number(page || 1) - 1);
 
     const query = Object.assign(
-      {
-        page: String(pageIndex)
-      },
-      params
+      { page: String(pageIndex) },
+                                params
     );
 
     const pairs = Object.keys(query)
@@ -159,11 +157,20 @@ class DefaultExtension extends MProvider {
     const index = Number(filter.state || 0);
     const selected = filter.values[index];
 
-    if (!selected) {
-      return "";
+    return selected
+    ? String(selected.value ?? "")
+    : "";
+  }
+
+  getSelectedGenres(filter) {
+    if (!filter || !Array.isArray(filter.state)) {
+      return [];
     }
 
-    return String(selected.value ?? "");
+    return filter.state
+    .filter(item => item && item.state === true)
+    .map(item => String(item.value))
+    .filter(Boolean);
   }
 
   async search(query, page, filters) {
@@ -222,16 +229,12 @@ class DefaultExtension extends MProvider {
       }
 
       if (
-        filter.type_name === "CheckBoxFilter" &&
-        filter.state === true
+        filter.type_name === "GroupFilter" &&
+        filter.name === "Géneros"
       ) {
-        const genre = MANHWAWEB_GENRES.find(
-          item => item[0] === filter.name
+        selectedGenres.push(
+          ...this.getSelectedGenres(filter)
         );
-
-        if (genre) {
-          selectedGenres.push(genre[1]);
-        }
       }
     }
 
@@ -350,7 +353,7 @@ class DefaultExtension extends MProvider {
       }))
     });
 
-    const filters = [
+    return [
       select("Tipo", [
         ["Ver todo", ""],
         ["Manhwa", "manhwa"],
@@ -382,6 +385,17 @@ class DefaultExtension extends MProvider {
         ["No", "no"]
       ]),
 
+      {
+        type_name: "GroupFilter",
+        name: "Géneros",
+        state: MANHWAWEB_GENRES.map(entry => ({
+          type_name: "CheckBox",
+          name: entry[0],
+          value: entry[1],
+          state: false
+        }))
+      },
+
       select("Ordenar por", [
         ["Alfabético", "alfabetico"],
         ["Creación", "creacion"],
@@ -394,16 +408,5 @@ class DefaultExtension extends MProvider {
         ["Ascendente", "asc"]
       ])
     ];
-
-    for (const genre of MANHWAWEB_GENRES) {
-      filters.push({
-        type_name: "CheckBoxFilter",
-        name: genre[0],
-        state: false,
-        value: genre[1]
-      });
-    }
-
-    return filters;
   }
 }
