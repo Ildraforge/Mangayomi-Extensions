@@ -34,7 +34,7 @@
     "hasCloudflare": false,
     "sourceCodeUrl": "https://raw.githubusercontent.com/Ildraforge/Mangayomi-Extensions/main/javascript/manga/src/es/webtoon.js",
     "apiUrl": "",
-    "version": "0.3.0",
+    "version": "0.3.1",
     "isManga": true,
     "itemType": 0,
     "isFullData": false,

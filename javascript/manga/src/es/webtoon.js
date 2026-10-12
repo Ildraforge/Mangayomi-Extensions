@@ -37,11 +37,11 @@ const mangayomiSources = [
     itemType: 0,
     isManga: true,
     isNsfw: false,
-    version: "0.3.0",
+    version: "0.3.1",
     dateFormat: "",
     dateFormatLocale: "",
     pkgPath: "manga/src/es/webtoon.js",
-    notes: "WEBTOON Español. Filtros y paginación de capítulos."
+    notes: "WEBTOON Español. Filtros y paginación automática de capítulos."
   }
 ];
 
@@ -374,15 +374,17 @@ class DefaultExtension extends MProvider {
   }
 
   buildEpisodePageUrl(seriesUrl, page) {
-    const url = seriesUrl.split("#")[0].split("?")[0];
-    const titleMatch = seriesUrl.match(/[?&]title_no=(\d+)/);
+    const cleanUrl = seriesUrl.split("#")[0];
+    const titleMatch = cleanUrl.match(/[?&]title_no=(\d+)/);
 
     if (!titleMatch) {
       return "";
     }
 
+    const basePath = cleanUrl.split("?")[0];
+
     return (
-      url +
+      basePath +
       "?title_no=" +
       titleMatch[1] +
       "&page=" +
@@ -390,63 +392,42 @@ class DefaultExtension extends MProvider {
     );
   }
 
-  hasEpisodeNextPage(doc, currentPage) {
-    const nextPage = currentPage + 1;
-
-    for (const anchor of doc.select(
-      ".paginate a[href*='page=']"
-    )) {
-      const href = this.getAttribute(anchor, "href");
-      const match = href.match(/[?&]page=(\d+)/);
-
-      if (match && Number(match[1]) === nextPage) {
-        return true;
-      }
-    }
-
-    return false;
-  }
-
   async getAllEpisodes(seriesUrl, firstDoc) {
     const seen = new Set();
     const episodes = this.parseEpisodes(firstDoc, seen);
 
     const maxPages = 200;
-    let currentDoc = firstDoc;
-    let currentPage = 1;
 
-    while (
-      currentPage < maxPages &&
-      this.hasEpisodeNextPage(currentDoc, currentPage)
-    ) {
-      const nextPage = currentPage + 1;
-      const nextUrl = this.buildEpisodePageUrl(
+    for (let page = 2; page <= maxPages; page++) {
+      const pageUrl = this.buildEpisodePageUrl(
         seriesUrl,
-        nextPage
+        page
       );
 
-      if (!nextUrl) break;
+      if (!pageUrl) {
+        break;
+      }
 
-      let nextDoc;
+      let doc;
 
       try {
-        nextDoc = await this.fetchDocument(nextUrl);
+        doc = await this.fetchDocument(pageUrl);
       } catch (error) {
         break;
       }
 
       const newEpisodes = this.parseEpisodes(
-        nextDoc,
+        doc,
         seen
       );
 
+      // WEBTOON puede repetir la última página
+      // cuando se solicita un número fuera del rango.
       if (newEpisodes.length === 0) {
         break;
       }
 
       episodes.push(...newEpisodes);
-      currentDoc = nextDoc;
-      currentPage = nextPage;
     }
 
     return episodes;
