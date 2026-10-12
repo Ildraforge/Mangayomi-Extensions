@@ -12,11 +12,11 @@ const mangayomiSources = [
     itemType: 0,
     isManga: true,
     isNsfw: false,
-    version: "0.1.1",
+    version: "0.1.2",
     dateFormat: "",
     dateFormatLocale: "",
     pkgPath: "manga/src/es/webtoon.js",
-    notes: "WEBTOON Español. Prueba de extracción de episodios."
+    notes: "WEBTOON Español. Extracción experimental de episodios."
   }
 ];
 
@@ -54,6 +54,7 @@ class DefaultExtension extends MProvider {
 
   getImage(element) {
     if (!element) return "";
+
     return this.absoluteUrl(
       element.attr("data-src") ||
       element.attr("src") ||
@@ -63,6 +64,7 @@ class DefaultExtension extends MProvider {
 
   getLink(element) {
     if (!element) return "";
+
     return this.absoluteUrl(
       element.attr("href") ||
       element.getHref ||
@@ -215,28 +217,16 @@ class DefaultExtension extends MProvider {
       : "";
   }
 
-  parseEpisodeDate(element) {
-    const dateElement =
-      element.selectFirst(".date") ||
-      element.selectFirst(".date_area");
-
-    if (!dateElement) return "";
-
-    return this.cleanText(dateElement.text);
-  }
-
   parseEpisodes(doc, seen) {
     const episodes = [];
 
-    for (const element of doc.select(
-      "li._episodeItem.detail_list_item"
-    )) {
-      const anchor =
-        element.selectFirst("a.detail_list_link") ||
-        element.selectFirst("a");
+    let anchors = doc.select("a.detail_list_link");
 
-      if (!anchor) continue;
+    if (!anchors || anchors.length === 0) {
+      anchors = doc.select('a[href*="/viewer?"]');
+    }
 
+    for (const anchor of anchors) {
       const link = this.getLink(anchor);
 
       if (!link || !link.includes("/viewer?")) {
@@ -245,31 +235,32 @@ class DefaultExtension extends MProvider {
 
       if (seen.has(link)) continue;
 
-      const locked =
-        element.selectFirst(".detail_paywall") ||
-        element.selectFirst(".ico_lock") ||
-        element.selectFirst(".locked");
+      const parent = anchor.parent;
+
+      const locked = parent && (
+        parent.selectFirst(".detail_paywall") ||
+        parent.selectFirst(".ico_lock") ||
+        parent.selectFirst(".locked")
+      );
 
       if (locked) continue;
 
       const titleElement =
-        element.selectFirst(".subj") ||
-        element.selectFirst(".sub_title") ||
-        element.selectFirst(".title");
+        anchor.selectFirst(".subj") ||
+        anchor.selectFirst(".sub_title") ||
+        anchor.selectFirst(".title");
 
       let name = titleElement
         ? this.cleanText(titleElement.text)
         : "";
 
       if (!name) {
-        name = this.cleanText(anchor.text);
-      }
+        const episodeNumber = link.match(
+          /episode_no=(\d+)/
+        );
 
-      if (!name) {
-        const match = link.match(/episode_no=(\d+)/);
-
-        name = match
-          ? "Episodio " + match[1]
+        name = episodeNumber
+          ? "Episodio " + episodeNumber[1]
           : "Episodio";
       }
 
@@ -303,8 +294,7 @@ class DefaultExtension extends MProvider {
         doc.selectFirst("p.summary")?.text || ""
       );
 
-    const imageUrl =
-      this.getMeta(doc, "og:image");
+    const imageUrl = this.getMeta(doc, "og:image");
 
     const authorElement =
       doc.selectFirst(".author_area") ||
@@ -314,13 +304,11 @@ class DefaultExtension extends MProvider {
       ? this.cleanText(authorElement.text)
       : "";
 
-    const genreElements = doc.select(
-      "h2.genre, p.genre"
-    );
-
     const genre = [];
 
-    for (const element of genreElements) {
+    for (const element of doc.select(
+      "h2.genre, p.genre"
+    )) {
       const value = this.cleanText(element.text);
 
       if (value && !genre.includes(value)) {
@@ -328,9 +316,8 @@ class DefaultExtension extends MProvider {
       }
     }
 
-    // Versión 0.1.1:
-    // Extraer únicamente la primera página
-    // para aislar el problema de capítulos.
+    // v0.1.2: prueba con los enlaces directos
+    // de episodios de la primera página.
     const seen = new Set();
     const episodes = this.parseEpisodes(doc, seen);
 

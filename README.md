@@ -10,7 +10,7 @@ Community-maintained JavaScript extensions for [Mangayomi](https://github.com/ko
 | Extension | Language | Version | Status |
 |---|---|---|---|
 | [ManhwaWeb](https://manhwaweb.com) | Spanish (`es`) | `0.1.4` | Functional |
-| [WEBTOON Español](https://www.webtoons.com/es) | Spanish (`es`) | `0.1.1` | Experimental |
+| [WEBTOON Español](https://www.webtoons.com/es) | Spanish (`es`) | `0.1.2` | Experimental |
 
 Both extensions are listed in this repository's `index.json` and can be installed through Mangayomi.
 
@@ -69,7 +69,7 @@ The catalog, search, filters, chapter lists, and chapter reading have been teste
 
 ### WEBTOON Español
 
-**Version:** `0.1.1`  
+**Version:** `0.1.2`  
 **Language:** Spanish (`es`)  
 **Status:** Experimental / Under development
 
@@ -103,7 +103,7 @@ The extension has been tested on Mangayomi 0.9.8 for Android.
 
 - Series details currently display `0 chapters` despite publicly available episodes being present on the source website.
 
-Version `0.1.1` temporarily limits episode extraction to the first page of a series to help diagnose this issue.
+Version `0.1.2` temporarily limits episode extraction to the first page of a series to help diagnose this issue.
 
 The episode list and chapter reading functionality should not be considered functional until further testing is completed.
 
@@ -125,7 +125,7 @@ The episode list and chapter reading functionality should not be considered func
 | Extension language | JavaScript |
 | Catalog language | Spanish (`es`) |
 | ManhwaWeb version | `0.1.4` |
-| WEBTOON Español version | `0.1.1` |
+| WEBTOON Español version | `0.1.2` |
 
 Compatibility and functionality may vary depending on the Mangayomi version and changes to the supported websites.
 
