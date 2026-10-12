@@ -1,0 +1,25 @@
+
+[
+  {
+    "name": "ManhwaWeb",
+    "id": 192847563,
+    "baseUrl": "https://manhwaweb.com",
+    "lang": "es",
+    "typeSource": "single",
+    "iconUrl": "https://manhwaweb.com/favicon.ico",
+    "dateFormat": "",
+    "dateFormatLocale": "",
+    "isNsfw": true,
+    "hasCloudflare": false,
+    "sourceCodeUrl": "https://raw.githubusercontent.com/Ildraforge/Mangayomi-ManhwaWeb/main/javascript/manga/src/es/manhwaweb.js",
+    "apiUrl": "https://api.manhwaweb.com",
+    "version": "0.1.1",
+    "isManga": true,
+    "itemType": 0,
+    "isFullData": false,
+    "appMinVerReq": "0.5.0",
+    "additionalParams": "",
+    "sourceCodeLanguage": 1,
+    "notes": "Fuente en español. Incluye contenido para adultos."
+  }
+]
