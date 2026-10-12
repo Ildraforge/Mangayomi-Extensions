@@ -8,11 +8,41 @@ const mangayomiSources = [
     iconUrl: "https://manhwaweb.com/favicon.ico",
     typeSource: "single",
     itemType: 0,
-    version: "0.1.2",
+    version: "0.1.3",
     pkgPath: "manga/src/es/manhwaweb.js",
     notes: "Fuente en español. Incluye contenido para adultos.",
     isNsfw: true
   }
+];
+
+const MANHWAWEB_GENRES = [
+  ["Acción", "3"],
+["Aventura", "29"],
+["Comedia", "18"],
+["Drama", "1"],
+["Recuentos de la vida", "42"],
+["Romance", "2"],
+["Venganza", "5"],
+["Harem", "6"],
+["Fantasía", "23"],
+["Sobrenatural", "31"],
+["Tragedia", "25"],
+["Psicológico", "43"],
+["Horror", "32"],
+["Thriller", "44"],
+["Historias cortas", "28"],
+["Ecchi", "30"],
+["Gore", "34"],
+["Girls love", "27"],
+["Boys love", "45"],
+["Reencarnación", "41"],
+["Sistema de niveles", "37"],
+["Ciencia ficción", "33"],
+["Apocalíptico", "38"],
+["Artes marciales", "39"],
+["Superpoderes", "40"],
+["Cultivación (cultivo)", "35"],
+["Milf", "8"]
 ];
 
 class DefaultExtension extends MProvider {
@@ -77,14 +107,32 @@ class DefaultExtension extends MProvider {
     };
   }
 
-  async getPopular(page) {
+  buildLibraryUrl(page, params = {}) {
     const pageIndex = Math.max(0, Number(page || 1) - 1);
 
-    const url =
-    `${this.getApiUrl()}/manhwa/library` +
-    `?page=${pageIndex}`;
+    const query = Object.assign(
+      {
+        page: String(pageIndex)
+      },
+      params
+    );
 
-    const json = await this.fetchJson(url);
+    const pairs = Object.keys(query)
+    .filter(key => query[key] !== undefined && query[key] !== null)
+    .map(key =>
+    encodeURIComponent(key) +
+    "=" +
+    encodeURIComponent(String(query[key]))
+    );
+
+    return `${this.getApiUrl()}/manhwa/library?${pairs.join("&")}`;
+  }
+
+  async getPopular(page) {
+    const json = await this.fetchJson(
+      this.buildLibraryUrl(page)
+    );
+
     return this.parseMangaList(json);
   }
 
@@ -93,27 +141,112 @@ class DefaultExtension extends MProvider {
   }
 
   async getLatestUpdates(page) {
-    const pageIndex = Math.max(0, Number(page || 1) - 1);
+    const json = await this.fetchJson(
+      this.buildLibraryUrl(page, {
+        order_item: "creacion",
+        order_dir: "desc"
+      })
+    );
 
-    const url =
-    `${this.getApiUrl()}/manhwa/library` +
-    `?order_item=actualizado` +
-    `&order_dir=desc` +
-    `&page=${pageIndex}`;
-
-    const json = await this.fetchJson(url);
     return this.parseMangaList(json);
   }
 
+  getSelectedValue(filter) {
+    if (!filter || !Array.isArray(filter.values)) {
+      return "";
+    }
+
+    const index = Number(filter.state || 0);
+    const selected = filter.values[index];
+
+    if (!selected) {
+      return "";
+    }
+
+    return String(selected.value ?? "");
+  }
+
   async search(query, page, filters) {
-    const pageIndex = Math.max(0, Number(page || 1) - 1);
+    const params = {
+      buscar: query || "",
+      estado: "",
+      tipo: "",
+      erotico: "",
+      demografia: "",
+      order_item: "alfabetico",
+      order_dir: "desc",
+      generes: ""
+    };
 
-    const url =
-    `${this.getApiUrl()}/manhwa/library` +
-    `?buscar=${encodeURIComponent(query || "")}` +
-    `&page=${pageIndex}`;
+    const selectedGenres = [];
 
-    const json = await this.fetchJson(url);
+    const filterList = Array.isArray(filters)
+    ? filters
+    : Array.isArray(filters?.filters)
+    ? filters.filters
+    : [];
+
+    for (const filter of filterList) {
+      if (!filter) {
+        continue;
+      }
+
+      if (filter.type_name === "SelectFilter") {
+        const value = this.getSelectedValue(filter);
+
+        switch (filter.name) {
+          case "Tipo":
+            params.tipo = value;
+            break;
+
+          case "Demografía":
+            params.demografia = value;
+            break;
+
+          case "Estado":
+            params.estado = value;
+            break;
+
+          case "Erótico":
+            params.erotico = value;
+            break;
+
+          case "Ordenar por":
+            params.order_item = value || "alfabetico";
+            break;
+
+          case "Dirección":
+            params.order_dir = value || "desc";
+            break;
+        }
+      }
+
+      if (
+        filter.type_name === "CheckBoxFilter" &&
+        filter.state === true
+      ) {
+        const genre = MANHWAWEB_GENRES.find(
+          item => item[0] === filter.name
+        );
+
+        if (genre) {
+          selectedGenres.push(genre[1]);
+        }
+      }
+    }
+
+    if (selectedGenres.length > 4) {
+      throw new Error(
+        "ManhwaWeb permite seleccionar un máximo de 4 géneros."
+      );
+    }
+
+    params.generes = selectedGenres.join("a");
+
+    const json = await this.fetchJson(
+      this.buildLibraryUrl(page, params)
+    );
+
     return this.parseMangaList(json);
   }
 
@@ -206,6 +339,71 @@ class DefaultExtension extends MProvider {
   }
 
   getFilterList() {
-    return [];
+    const select = (name, entries, defaultIndex = 0) => ({
+      type_name: "SelectFilter",
+      name,
+      state: defaultIndex,
+      values: entries.map(entry => ({
+        type_name: "SelectOption",
+        name: entry[0],
+        value: entry[1]
+      }))
+    });
+
+    const filters = [
+      select("Tipo", [
+        ["Ver todo", ""],
+        ["Manhwa", "manhwa"],
+        ["Manga", "manga"],
+        ["Manhua", "manhua"],
+        ["Doujinshi", "doujinshi"],
+        ["Novela", "novela"],
+        ["One shot", "one_shot"]
+      ]),
+
+      select("Demografía", [
+        ["Ver todo", ""],
+        ["Seinen", "seinen"],
+        ["Shonen", "shonen"],
+        ["Josei", "josei"],
+        ["Shojo", "shojo"]
+      ]),
+
+      select("Estado", [
+        ["Ver todo", ""],
+        ["Publicándose", "publicandose"],
+        ["Pausado", "pausado"],
+        ["Finalizado", "finalizado"]
+      ]),
+
+      select("Erótico", [
+        ["Ver todo", ""],
+        ["Sí", "si"],
+        ["No", "no"]
+      ]),
+
+      select("Ordenar por", [
+        ["Alfabético", "alfabetico"],
+        ["Creación", "creacion"],
+        ["Popularidad", "popularidad"],
+        ["Número de capítulos", "num_chapter"]
+      ]),
+
+      select("Dirección", [
+        ["Descendente", "desc"],
+        ["Ascendente", "asc"]
+      ])
+    ];
+
+    for (const genre of MANHWAWEB_GENRES) {
+      filters.push({
+        type_name: "CheckBoxFilter",
+        name: genre[0],
+        state: false,
+        value: genre[1]
+      });
+    }
+
+    return filters;
   }
 }
