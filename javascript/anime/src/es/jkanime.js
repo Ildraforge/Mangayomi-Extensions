@@ -7,7 +7,7 @@ const mangayomiSources = [
     iconUrl: "https://cdn.jkdesa.com/assets3/css/img/favicon.ico",
     typeSource: "single",
     itemType: 1,
-    version: "0.1.1",
+    version: "0.1.2",
     pkgPath: "anime/src/es/jkanime.js",
     notes: "Anime subtitulado en español. Reproducción HLS experimental.",
     isNsfw: false
@@ -86,9 +86,6 @@ class DefaultExtension extends MProvider {
     const cookies = [];
     const seen = new Set();
 
-    // Mangayomi may join multiple Set-Cookie headers using ";;;".
-    // The comma fallback also handles conventional combined headers,
-    // without splitting commas inside Expires attributes.
     const parts = String(raw)
       .split(/;;;|,(?=\s*[^;,=\s]+=)/);
 
@@ -249,7 +246,6 @@ class DefaultExtension extends MProvider {
   async getDetail(url) {
     const link = this.absoluteUrl(url);
 
-    // Fetch the anime page and preserve its response headers.
     const pageResponse = await this.fetchResponse(link);
     const html = pageResponse.body || "";
 
@@ -308,7 +304,7 @@ class DefaultExtension extends MProvider {
       "Origin": "https://jkanime.net",
       "Cookie": cookies,
       "X-Requested-With": "XMLHttpRequest",
-      "Content-Type": "application/x-www-form-urlencoded",
+      "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
       "Accept": "application/json"
     };
 
@@ -319,7 +315,9 @@ class DefaultExtension extends MProvider {
       const response = await client.post(
         "https://jkanime.net/ajax/episodes/" + id + "/" + page,
         headers,
-        "_token=" + encodeURIComponent(token)
+        {
+          _token: token
+        }
       );
 
       if (!response || response.statusCode !== 200) {
