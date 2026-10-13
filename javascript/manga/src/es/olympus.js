@@ -11,11 +11,11 @@ const mangayomiSources = [
     itemType: 0,
     isManga: true,
     isNsfw: false,
-    version: "0.1.3",
+    version: "0.1.4",
     dateFormat: "",
     dateFormatLocale: "",
     pkgPath: "manga/src/es/olympus.js",
-    notes: "Catálogo, búsqueda por nombre, capítulos y lector de Olympus Scans."
+    notes: "Catálogo, búsqueda por nombre con portadas HD, capítulos y lector de Olympus Scans."
   }
 ];
 
@@ -81,10 +81,22 @@ class DefaultExtension extends MProvider {
     return `${this.baseUrl}/series/comic-${slug}`;
   }
 
+  getHighResolutionCover(url) {
+    if (typeof url !== "string") {
+      return "";
+    }
+
+    if (/\/comics\/covers\/.*-sm\.webp(?:\?.*)?$/.test(url)) {
+      return url.replace(/-sm\.webp(?=\?|$)/, "-lg.webp");
+    }
+
+    return url;
+  }
+
   toManga(item) {
     return {
       name: item.name || "",
-      imageUrl: item.cover || "",
+      imageUrl: this.getHighResolutionCover(item.cover),
       link: this.seriesUrl(item.slug)
     };
   }
