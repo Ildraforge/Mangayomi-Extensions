@@ -11,19 +11,21 @@ const mangayomiSources = [
     itemType: 0,
     isManga: true,
     isNsfw: false,
-    version: "0.1.0",
+    version: "0.1.1",
     dateFormat: "",
     dateFormatLocale: "",
     pkgPath: "manga/src/es/olympus.js",
-    notes: "Catálogo, búsqueda local, capítulos y lector de Olympus Scans."
+    notes: "Catálogo, búsqueda, capítulos y lector de Olympus Scans."
   }
 ];
 
 class DefaultExtension extends MProvider {
   constructor() {
     super();
+
     this.baseUrl = "https://olympusxyz.com";
     this.apiUrl = `${this.baseUrl}/api`;
+    this.panelApiUrl = "https://panel.olympusxyz.com/api";
   }
 
   getHeaders() {
@@ -36,7 +38,14 @@ class DefaultExtension extends MProvider {
 
   async getJson(url) {
     const response = await new Client().get(url, this.getHeaders());
-    return JSON.parse(response.body);
+
+    try {
+      return JSON.parse(response.body);
+    } catch (error) {
+      throw new Error(
+        `Olympus Scans: respuesta JSON inválida desde ${url}`
+      );
+    }
   }
 
   async getDocument(url) {
@@ -47,12 +56,14 @@ class DefaultExtension extends MProvider {
   absoluteUrl(url) {
     if (!url) return "";
     if (url.startsWith("http")) return url;
+
     return `${this.baseUrl}${url.startsWith("/") ? "" : "/"}${url}`;
   }
 
   getSlug(url) {
     const path = url.split("?")[0].replace(/\/+$/, "");
     const last = path.split("/").pop() || "";
+
     return decodeURIComponent(last.replace(/^comic-/, ""));
   }
 
@@ -69,17 +80,24 @@ class DefaultExtension extends MProvider {
   }
 
   async getCatalog(page, direction = "asc") {
-    const url = `${this.apiUrl}/series?page=${page}&direction=${direction}&type=comic`;
+    const url =
+      `${this.apiUrl}/series` +
+      `?page=${page}&direction=${direction}&type=comic`;
+
     const json = await this.getJson(url);
     const pagination = json.data && json.data.series;
 
     if (!pagination) {
-      throw new Error("Olympus Scans: respuesta de catálogo inesperada");
+      throw new Error(
+        "Olympus Scans: respuesta de catálogo inesperada"
+      );
     }
 
     return {
       list: (pagination.data || []).map(item => this.toManga(item)),
-      hasNextPage: Number(pagination.current_page) < Number(pagination.last_page),
+      hasNextPage:
+        Number(pagination.current_page) <
+        Number(pagination.last_page),
       totalPages: Number(pagination.last_page) || 1
     };
   }
@@ -103,15 +121,15 @@ class DefaultExtension extends MProvider {
       return this.getPopular(page);
     }
 
-    // Búsqueda provisional: el endpoint /api/series ignora search=.
-    // Se consulta el catálogo completo y se filtra por título.
     const first = await this.getCatalog(1, "asc");
+
     const matches = first.list.filter(item =>
       item.name.toLocaleLowerCase().includes(term)
     );
 
     for (let p = 2; p <= first.totalPages; p++) {
       const result = await this.getCatalog(p, "asc");
+
       for (const item of result.list) {
         if (item.name.toLocaleLowerCase().includes(term)) {
           matches.push(item);
@@ -130,12 +148,18 @@ class DefaultExtension extends MProvider {
 
   async getDetail(url) {
     const slug = this.getSlug(url);
-    const apiUrl = `${this.apiUrl}/series/${encodeURIComponent(slug)}?type=comic`;
-    const response = await this.getJson(apiUrl);
+
+    const detailUrl =
+      `${this.apiUrl}/series/${encodeURIComponent(slug)}` +
+      `?type=comic`;
+
+    const response = await this.getJson(detailUrl);
     const item = response.data;
 
     if (!item || !item.name) {
-      throw new Error("Olympus Scans: no se encontraron los detalles");
+      throw new Error(
+        "Olympus Scans: no se encontraron los detalles"
+      );
     }
 
     const episodes = [];
@@ -144,7 +168,7 @@ class DefaultExtension extends MProvider {
 
     do {
       const chaptersUrl =
-        `${this.apiUrl}/series/${encodeURIComponent(slug)}/chapters` +
+        `${this.panelApiUrl}/series/${encodeURIComponent(slug)}/chapters` +
         `?page=${chapterPage}&direction=desc&type=comic`;
 
       const chaptersResponse = await this.getJson(chaptersUrl);
@@ -163,9 +187,11 @@ class DefaultExtension extends MProvider {
     } while (chapterPage <= lastPage);
 
     const genres = Array.isArray(item.genres)
-      ? item.genres.map(genre =>
-          typeof genre === "string" ? genre : genre.name
-        ).filter(Boolean)
+      ? item.genres
+          .map(genre =>
+            typeof genre === "string" ? genre : genre.name
+          )
+          .filter(Boolean)
       : [];
 
     return {
@@ -184,15 +210,17 @@ class DefaultExtension extends MProvider {
 
   async getPageList(url) {
     const document = await this.getDocument(this.absoluteUrl(url));
+
     const images = [];
     const seen = new Set();
 
     for (const element of document.select("img")) {
       const src = element.attr("src") || "";
 
-      // Las páginas tienen rutas /comics/{serieId}/{capituloId}/...
-      // Las portadas usan /comics/covers/... y quedan excluidas.
-      if (!/\/comics\/\d+\/\d+\//.test(src)) continue;
+      // Excluir portadas y conservar solamente páginas de capítulos.
+      if (!/\/comics\/\d+\/\d+\//.test(src)) {
+        continue;
+      }
 
       const imageUrl = this.absoluteUrl(src);
 
