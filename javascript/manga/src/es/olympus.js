@@ -11,7 +11,7 @@ const mangayomiSources = [
     itemType: 0,
     isManga: true,
     isNsfw: false,
-    version: "0.1.1",
+    version: "0.1.2",
     dateFormat: "",
     dateFormatLocale: "",
     pkgPath: "manga/src/es/olympus.js",
@@ -37,7 +37,10 @@ class DefaultExtension extends MProvider {
   }
 
   async getJson(url) {
-    const response = await new Client().get(url, this.getHeaders());
+    const response = await new Client().get(
+      url,
+      this.getHeaders()
+    );
 
     try {
       return JSON.parse(response.body);
@@ -49,13 +52,20 @@ class DefaultExtension extends MProvider {
   }
 
   async getDocument(url) {
-    const response = await new Client().get(url, this.getHeaders());
+    const response = await new Client().get(
+      url,
+      this.getHeaders()
+    );
+
     return new Document(response.body);
   }
 
   absoluteUrl(url) {
     if (!url) return "";
-    if (url.startsWith("http")) return url;
+
+    if (url.startsWith("http")) {
+      return url;
+    }
 
     return `${this.baseUrl}${url.startsWith("/") ? "" : "/"}${url}`;
   }
@@ -94,7 +104,9 @@ class DefaultExtension extends MProvider {
     }
 
     return {
-      list: (pagination.data || []).map(item => this.toManga(item)),
+      list: (pagination.data || []).map(item =>
+        this.toManga(item)
+      ),
       hasNextPage:
         Number(pagination.current_page) <
         Number(pagination.last_page),
@@ -115,7 +127,9 @@ class DefaultExtension extends MProvider {
   }
 
   async search(query, page, filters) {
-    const term = String(query || "").trim().toLocaleLowerCase();
+    const term = String(query || "")
+      .trim()
+      .toLocaleLowerCase();
 
     if (!term) {
       return this.getPopular(page);
@@ -168,28 +182,45 @@ class DefaultExtension extends MProvider {
 
     do {
       const chaptersUrl =
-        `${this.panelApiUrl}/series/${encodeURIComponent(slug)}/chapters` +
+        `${this.panelApiUrl}/series/` +
+        `${encodeURIComponent(slug)}/chapters` +
         `?page=${chapterPage}&direction=desc&type=comic`;
 
       const chaptersResponse = await this.getJson(chaptersUrl);
       const chapters = chaptersResponse.data || [];
 
       for (const chapter of chapters) {
+        let dateUpload = "";
+
+        if (chapter.published_at) {
+          const timestamp = Date.parse(
+            chapter.published_at
+          );
+
+          if (!Number.isNaN(timestamp)) {
+            dateUpload = String(timestamp);
+          }
+        }
+
         episodes.push({
           name: `Capítulo ${chapter.name}`,
           url: `${this.baseUrl}/capitulo/${chapter.id}/comic-${slug}`,
-          dateUpload: chapter.published_at || ""
+          dateUpload
         });
       }
 
-      lastPage = Number(chaptersResponse.meta?.last_page) || 1;
+      lastPage =
+        Number(chaptersResponse.meta?.last_page) || 1;
+
       chapterPage++;
     } while (chapterPage <= lastPage);
 
     const genres = Array.isArray(item.genres)
       ? item.genres
           .map(genre =>
-            typeof genre === "string" ? genre : genre.name
+            typeof genre === "string"
+              ? genre
+              : genre.name
           )
           .filter(Boolean)
       : [];
@@ -209,7 +240,9 @@ class DefaultExtension extends MProvider {
   }
 
   async getPageList(url) {
-    const document = await this.getDocument(this.absoluteUrl(url));
+    const document = await this.getDocument(
+      this.absoluteUrl(url)
+    );
 
     const images = [];
     const seen = new Set();
@@ -217,17 +250,25 @@ class DefaultExtension extends MProvider {
     for (const element of document.select("img")) {
       const src = element.attr("src") || "";
 
-      // Excluir portadas y conservar solamente páginas de capítulos.
       if (!/\/comics\/\d+\/\d+\//.test(src)) {
         continue;
       }
 
       const imageUrl = this.absoluteUrl(src);
 
-      if (!seen.has(imageUrl)) {
-        seen.add(imageUrl);
-        images.push(imageUrl);
+      if (seen.has(imageUrl)) {
+        continue;
       }
+
+      seen.add(imageUrl);
+
+      images.push({
+        url: imageUrl,
+        headers: {
+          "Referer": `${this.baseUrl}/`,
+          "Accept": "image/avif,image/webp,image/*,*/*"
+        }
+      });
     }
 
     return images;
