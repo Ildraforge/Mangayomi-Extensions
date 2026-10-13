@@ -11,11 +11,11 @@ const mangayomiSources = [
     itemType: 0,
     isManga: true,
     isNsfw: false,
-    version: "0.1.2",
+    version: "0.1.3",
     dateFormat: "",
     dateFormatLocale: "",
     pkgPath: "manga/src/es/olympus.js",
-    notes: "Catálogo, búsqueda, capítulos y lector de Olympus Scans."
+    notes: "Catálogo, búsqueda por nombre, capítulos y lector de Olympus Scans."
   }
 ];
 
@@ -126,33 +126,43 @@ class DefaultExtension extends MProvider {
     return this.getCatalog(page, "desc");
   }
 
+  normalizeSearchText(value) {
+    return String(value || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim();
+  }
+
   async search(query, page, filters) {
-    const term = String(query || "")
-      .trim()
-      .toLocaleLowerCase();
+    const term = this.normalizeSearchText(query);
 
     if (!term) {
       return this.getPopular(page);
     }
 
-    const first = await this.getCatalog(1, "asc");
-
-    const matches = first.list.filter(item =>
-      item.name.toLocaleLowerCase().includes(term)
+    const response = await this.getJson(
+      `${this.apiUrl}/series/list`
     );
 
-    for (let p = 2; p <= first.totalPages; p++) {
-      const result = await this.getCatalog(p, "asc");
-
-      for (const item of result.list) {
-        if (item.name.toLocaleLowerCase().includes(term)) {
-          matches.push(item);
-        }
-      }
+    if (!response || !Array.isArray(response.data)) {
+      throw new Error(
+        "Olympus Scans: respuesta de búsqueda inesperada"
+      );
     }
 
+    const matches = response.data
+      .filter(item =>
+        item &&
+        item.type === "comic" &&
+        item.slug &&
+        this.normalizeSearchText(item.name).includes(term)
+      )
+      .map(item => this.toManga(item));
+
     const pageSize = 15;
-    const start = (page - 1) * pageSize;
+    const currentPage = Math.max(1, Number(page) || 1);
+    const start = (currentPage - 1) * pageSize;
 
     return {
       list: matches.slice(start, start + pageSize),
