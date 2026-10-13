@@ -1,18 +1,20 @@
 
 # Mangayomi Extensions
 
-Community-maintained JavaScript extensions for [Mangayomi](https://github.com/kodjodevf/mangayomi), focused on Spanish-language manga, manhwa, manhua, and webcomics.
+Community-maintained JavaScript extensions for [Mangayomi](https://github.com/kodjodevf/mangayomi), focused on Spanish-language manga, manhwa, manhua, webcomics, and anime.
 
-> **Disclaimer:** This is an unofficial community project. It is not affiliated with Mangayomi, ManhwaWeb, WEBTOON, or their respective owners.
+> **Disclaimer:** This is an unofficial community project. It is not affiliated with Mangayomi or any of the content providers supported by these extensions.
 
 ## Available Extensions
 
-| Extension | Language | Version | Status |
-|---|---|---|---|
-| [ManhwaWeb](https://manhwaweb.com) | Spanish (`es`) | `0.1.4` | Functional |
-| [WEBTOON Español](https://www.webtoons.com/es) | Spanish (`es`) | `0.3.1` | Experimental |
+| Extension | Type | Language | Version | Status |
+|---|---|---|---|---|
+| [ManhwaWeb](https://manhwaweb.com) | Manga | Spanish (`es`) | `0.1.4` | Functional |
+| [WEBTOON Español](https://www.webtoons.com/es) | Manga | Spanish (`es`) | `0.3.1` | Experimental |
+| [Olympus Scans](https://olympusxyz.com) | Manga | Spanish (`es`) | `0.1.4` | Experimental |
+| [JKAnime](https://jkanime.net) | Anime | Spanish (`es`) | `0.1.0` | Experimental / Untested in-app |
 
-Both extensions are listed in this repository's `index.json` and can be installed through Mangayomi.
+All four extensions are listed in this repository's `index.json`.
 
 ## Installation
 
@@ -26,11 +28,11 @@ Both extensions are listed in this repository's `index.json` and can be installe
 
 4. Refresh the extension list.
 5. Find and install your preferred extension.
-6. Open the extension from Mangayomi's browse section.
+6. Open manga extensions from the manga browsing section or anime extensions from the anime browsing section.
 
 **Note:** ManhwaWeb contains adult content. Enable NSFW / 18+ extensions in Mangayomi's settings if you want to use that source.
 
-## Extensions
+## Manga Extensions
 
 ### ManhwaWeb
 
@@ -115,19 +117,97 @@ The episode list and chapter reading functionality should not be considered func
 - Website changes may affect catalog, metadata, episode, and image extraction.
 - This extension does not bypass WEBTOON access restrictions.
 
+### Olympus Scans
+
+**Version:** `0.1.4`  
+**Language:** Spanish (`es`)  
+**Status:** Experimental
+
+A JavaScript extension integrating the Olympus Scans catalog into Mangayomi.
+
+#### Implemented Features
+
+- Browse series from the Olympus Scans catalog.
+- Search for series by title.
+- Display series information and cover images.
+- Retrieve chapter lists.
+- Extract chapter images for reading.
+- Access the source website's available catalog data.
+
+#### Limitations
+
+- Functionality depends on the source website and its API.
+- Changes to the website may affect search, chapter extraction, or image loading.
+- Compatibility and reading behavior should be verified on each supported platform.
+
+## Anime Extensions
+
+### JKAnime
+
+**Version:** `0.1.0`  
+**Language:** Spanish (`es`)  
+**Status:** Experimental / Awaiting in-app testing
+
+A JavaScript anime extension for Mangayomi that integrates the JKAnime catalog and attempts to extract playable HLS streams.
+
+#### Implemented Features
+
+- Browse a selection of anime from the JKAnime homepage.
+- Display recently updated anime.
+- Search for anime by title.
+- Extract anime titles, covers, and basic metadata.
+- Request episode lists through JKAnime's AJAX API.
+- Support multi-page episode retrieval for long-running series.
+- Extract HLS (`.m3u8`) streaming links through the Magi player.
+
+#### Development Status
+
+**Verified outside Mangayomi:**
+
+- JKAnime homepage and anime detail pages are accessible.
+- The search endpoint returns anime results.
+- The episode AJAX endpoint returns episode data when supplied with the appropriate session and CSRF information.
+- The Magi player exposes HLS streaming links.
+- A sample HLS playlist and video segment were accessible during testing.
+- The JavaScript file passes `node --check`.
+
+**Not yet verified:**
+
+- Extension installation and recognition inside Mangayomi.
+- Anime catalog and search rendering inside Mangayomi.
+- Complete episode list loading through Mangayomi's HTTP client.
+- HLS playback using Mangayomi's video player.
+
+#### Known Limitations
+
+- Episode retrieval may require additional session cookie handling.
+- The homepage catalog is limited and does not represent the complete JKAnime library.
+- The popular and latest sections currently share the same initial catalog implementation.
+- Streaming URLs are temporary and must be extracted again when playback starts.
+- Video availability depends on the source's external streaming providers.
+- Website changes may break episode retrieval or video extraction.
+
+**Important:** JKAnime `0.1.0` is an initial experimental implementation, not a confirmed working anime source.
+
 ## Compatibility
 
 | Property | Value |
 |---|---|
 | Application | Mangayomi |
-| Tested version | `0.9.8` |
-| Tested platform | Android |
 | Extension language | JavaScript |
 | Catalog language | Spanish (`es`) |
-| ManhwaWeb version | `0.1.4` |
-| WEBTOON Español version | `0.3.1` |
+| Manga sources | 3 |
+| Anime sources | 1 |
+| ManhwaWeb | `0.1.4` |
+| WEBTOON Español | `0.3.1` |
+| Olympus Scans | `0.1.4` |
+| JKAnime | `0.1.0` |
 
-Compatibility and functionality may vary depending on the Mangayomi version and changes to the supported websites.
+ManhwaWeb and WEBTOON Español have been tested on Mangayomi 0.9.8 for Android.
+
+Compatibility testing for Olympus Scans and JKAnime is not fully documented here.
+
+Functionality may vary depending on the Mangayomi version, device platform, and changes to third-party websites.
 
 ## Repository Structure
 
@@ -137,14 +217,19 @@ Mangayomi-Extensions/
 ├── repo.json
 ├── index.json
 └── javascript/
-    └── manga/
+    ├── manga/
+    │   └── src/
+    │       └── es/
+    │           ├── manhwaweb.js
+    │           ├── webtoon.js
+    │           └── olympus.js
+    └── anime/
         └── src/
             └── es/
-                ├── manhwaweb.js
-                └── webtoon.js
+                └── jkanime.js
 ```
 
-The root `index.json` lists the published extensions. Each extension has its own source identifier, version, and JavaScript implementation.
+The root `index.json` lists published extensions. Each extension has its own source identifier, version, and JavaScript implementation.
 
 ## Updates
 
@@ -172,20 +257,27 @@ Please include:
 - Steps to reproduce it.
 - Screenshots or relevant error messages, if available.
 
-For WEBTOON Español, chapter listing and reading issues are particularly useful during the experimental development phase.
+For WEBTOON Español, chapter listing and reading issues are particularly useful during experimental development.
+
+For JKAnime, reports about episode loading, missing video sources, and HLS playback are especially helpful.
 
 ## Disclaimer
 
 These extensions are independent integrations with third-party websites.
 
-This repository does not host manga chapters, WEBTOON episodes, or copyrighted comic images.
+This repository does not host manga chapters, anime episodes, streaming videos, or copyrighted media.
 
 All titles, artwork, images, logos, and trademarks belong to their respective owners.
 
 Users are responsible for complying with applicable laws and the terms of service of the websites they access.
 
+These extensions do not bypass paid access, DRM, or other content access restrictions.
+
 ## Credits
 
 - [Mangayomi](https://github.com/kodjodevf/mangayomi) — Open-source manga and anime reader.
-- [ManhwaWeb](https://manhwaweb.com) — Content website and catalog.
+- [ManhwaWeb](https://manhwaweb.com) — Manga and manhwa content website.
 - [WEBTOON](https://www.webtoons.com/es) — WEBTOON publishing platform.
+- [Olympus Scans](https://olympusxyz.com) — Manga and manhwa content website.
+- [JKAnime](https://jkanime.net) — Anime catalog and streaming website.
+```
