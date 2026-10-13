@@ -7,7 +7,7 @@ const mangayomiSources = [
     iconUrl: "https://cdn.jkdesa.com/assets3/css/img/favicon.ico",
     typeSource: "single",
     itemType: 1,
-    version: "0.1.0",
+    version: "0.1.1",
     pkgPath: "anime/src/es/jkanime.js",
     notes: "Anime subtitulado en español. Reproducción HLS experimental.",
     isNsfw: false
@@ -17,19 +17,26 @@ const mangayomiSources = [
 class DefaultExtension extends MProvider {
   getHeaders(url) {
     return {
-      "User-Agent": "Mozilla/5.0",
+      "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36",
       "Referer": "https://jkanime.net/",
       "Accept": "text/html,application/xhtml+xml,*/*"
     };
   }
 
-  async fetchHtml(url) {
+  async fetchResponse(url) {
     const response = await new Client().get(url, this.getHeaders(url));
 
     if (!response || response.statusCode !== 200) {
-      throw new Error("JKAnime: error HTTP " + (response && response.statusCode));
+      throw new Error(
+        "JKAnime: error HTTP " + (response && response.statusCode)
+      );
     }
 
+    return response;
+  }
+
+  async fetchHtml(url) {
+    const response = await this.fetchResponse(url);
     return response.body || "";
   }
 
@@ -46,7 +53,11 @@ class DefaultExtension extends MProvider {
 
   absoluteUrl(value) {
     const url = String(value || "").trim();
-    if (/^https?:\/\//i.test(url)) return url;
+
+    if (/^https?:\/\//i.test(url)) {
+      return url;
+    }
+
     return "https://jkanime.net/" + url.replace(/^\/+/, "");
   }
 
@@ -54,7 +65,53 @@ class DefaultExtension extends MProvider {
     const match = String(episodeUrl).match(
       /^(https?:\/\/[^/]+\/[^/?#]+\/)(?:\d+\/?)?(?:\?.*)?$/
     );
+
     return match ? match[1] : episodeUrl;
+  }
+
+  getResponseCookies(response) {
+    const headers = response && response.headers
+      ? response.headers
+      : {};
+
+    const raw = Object.keys(headers)
+      .filter(key => key.toLowerCase() === "set-cookie")
+      .map(key => headers[key])
+      .join(";;;");
+
+    if (!raw) {
+      return "";
+    }
+
+    const cookies = [];
+    const seen = new Set();
+
+    // Mangayomi may join multiple Set-Cookie headers using ";;;".
+    // The comma fallback also handles conventional combined headers,
+    // without splitting commas inside Expires attributes.
+    const parts = String(raw)
+      .split(/;;;|,(?=\s*[^;,=\s]+=)/);
+
+    for (const part of parts) {
+      const first = part.trim().split(";")[0].trim();
+      const equalIndex = first.indexOf("=");
+
+      if (equalIndex <= 0) {
+        continue;
+      }
+
+      const name = first.substring(0, equalIndex).trim();
+      const value = first.substring(equalIndex + 1).trim();
+
+      if (!name || seen.has(name)) {
+        continue;
+      }
+
+      seen.add(name);
+      cookies.push(name + "=" + value);
+    }
+
+    return cookies.join("; ");
   }
 
   parseAnimeCards(html) {
@@ -62,6 +119,7 @@ class DefaultExtension extends MProvider {
     const seen = new Set();
 
     const pattern = /<div[^>]*class="[^"]*\banime__item\b[^"]*"[^>]*>([\s\S]*?)(?=<div[^>]*class="[^"]*\banime__item\b|$)/gi;
+
     let match;
 
     while ((match = pattern.exec(html)) !== null) {
@@ -75,16 +133,24 @@ class DefaultExtension extends MProvider {
         /data-setbg="([^"]+)"/i
       );
 
-      if (!titleMatch) continue;
+      if (!titleMatch) {
+        continue;
+      }
 
       const link = this.absoluteUrl(titleMatch[1]);
-      if (seen.has(link)) continue;
+
+      if (seen.has(link)) {
+        continue;
+      }
+
       seen.add(link);
 
       list.push({
         name: this.decodeHtml(titleMatch[2]),
         link: link,
-        imageUrl: imageMatch ? this.decodeHtml(imageMatch[1]) : ""
+        imageUrl: imageMatch
+          ? this.decodeHtml(imageMatch[1])
+          : ""
       });
     }
 
@@ -96,26 +162,44 @@ class DefaultExtension extends MProvider {
     const seen = new Set();
 
     const pattern = /<div class="card ml-2 mr-2">([\s\S]*?)<\/a><\/div>/gi;
+
     let match;
 
     while ((match = pattern.exec(html)) !== null) {
       const block = match[1];
-      const linkMatch = block.match(/<a[^>]*href="([^"]+)"/i);
+
+      const linkMatch = block.match(
+        /<a[^>]*href="([^"]+)"/i
+      );
+
       const titleMatch = block.match(
         /<h5[^>]*class="[^"]*card-title[^"]*"[^>]*>([\s\S]*?)<\/h5>/i
       );
-      const imageMatch = block.match(/data-animepic="([^"]+)"/i);
 
-      if (!linkMatch || !titleMatch) continue;
+      const imageMatch = block.match(
+        /data-animepic="([^"]+)"/i
+      );
 
-      const link = this.animeUrl(this.absoluteUrl(linkMatch[1]));
-      if (seen.has(link)) continue;
+      if (!linkMatch || !titleMatch) {
+        continue;
+      }
+
+      const link = this.animeUrl(
+        this.absoluteUrl(linkMatch[1])
+      );
+
+      if (seen.has(link)) {
+        continue;
+      }
+
       seen.add(link);
 
       list.push({
         name: this.decodeHtml(titleMatch[1]),
         link: link,
-        imageUrl: imageMatch ? this.decodeHtml(imageMatch[1]) : ""
+        imageUrl: imageMatch
+          ? this.decodeHtml(imageMatch[1])
+          : ""
       });
     }
 
@@ -124,13 +208,20 @@ class DefaultExtension extends MProvider {
 
   async getPopular(page) {
     if (Number(page) > 1) {
-      return { list: [], hasNextPage: false };
+      return {
+        list: [],
+        hasNextPage: false
+      };
     }
 
-    const html = await this.fetchHtml("https://jkanime.net/");
-    const list = this.parseRecentCards(html);
+    const html = await this.fetchHtml(
+      "https://jkanime.net/"
+    );
 
-    return { list, hasNextPage: false };
+    return {
+      list: this.parseRecentCards(html),
+      hasNextPage: false
+    };
   }
 
   async getLatestUpdates(page) {
@@ -157,19 +248,27 @@ class DefaultExtension extends MProvider {
 
   async getDetail(url) {
     const link = this.absoluteUrl(url);
-    const html = await this.fetchHtml(link);
+
+    // Fetch the anime page and preserve its response headers.
+    const pageResponse = await this.fetchResponse(link);
+    const html = pageResponse.body || "";
 
     const titleMatch = html.match(
       /<meta[^>]*property="og:title"[^>]*content="([^"]+)"/i
     );
+
     const imageMatch = html.match(
       /<meta[^>]*property="og:image"[^>]*content="([^"]+)"/i
     );
+
     const descriptionMatch = html.match(
       /<meta[^>]*name="description"[^>]*content="([^"]+)"/i
     );
 
-    const idMatch = html.match(/\/ajax\/episodes\/(\d+)\//i);
+    const idMatch = html.match(
+      /\/ajax\/episodes\/(\d+)\//i
+    );
+
     const csrfMatch = html.match(
       /<meta[^>]*name="csrf-token"[^>]*content="([^"]+)"/i
     );
@@ -180,60 +279,106 @@ class DefaultExtension extends MProvider {
 
     const episodes = [];
 
-    if (idMatch && csrfMatch) {
-      const id = idMatch[1];
-      const token = csrfMatch[1];
-      const client = new Client();
+    if (!idMatch) {
+      throw new Error(
+        "JKAnime: no se encontró el identificador del anime."
+      );
+    }
 
-      const headers = {
-        ...this.getHeaders(link),
-        "Referer": link,
-        "X-Requested-With": "XMLHttpRequest",
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Accept": "application/json"
-      };
+    if (!csrfMatch) {
+      throw new Error(
+        "JKAnime: no se encontró el token CSRF."
+      );
+    }
 
-      let total = 0;
+    const cookies = this.getResponseCookies(pageResponse);
 
-      for (let page = 1; page <= 150; page++) {
-        const response = await client.post(
-          "https://jkanime.net/ajax/episodes/" + id + "/" + page,
-          headers,
-          "_token=" + encodeURIComponent(token)
+    if (!cookies) {
+      throw new Error(
+        "JKAnime: no se recibieron cookies de sesión."
+      );
+    }
+
+    const id = idMatch[1];
+    const token = csrfMatch[1];
+
+    const headers = {
+      ...this.getHeaders(link),
+      "Referer": link,
+      "Origin": "https://jkanime.net",
+      "Cookie": cookies,
+      "X-Requested-With": "XMLHttpRequest",
+      "Content-Type": "application/x-www-form-urlencoded",
+      "Accept": "application/json"
+    };
+
+    const client = new Client();
+    let total = 0;
+
+    for (let page = 1; page <= 150; page++) {
+      const response = await client.post(
+        "https://jkanime.net/ajax/episodes/" + id + "/" + page,
+        headers,
+        "_token=" + encodeURIComponent(token)
+      );
+
+      if (!response || response.statusCode !== 200) {
+        throw new Error(
+          "JKAnime: error al obtener episodios. HTTP " +
+          (response && response.statusCode)
         );
+      }
 
-        if (!response || response.statusCode !== 200) break;
+      let json;
 
-        let json;
-        try {
-          json = JSON.parse(response.body);
-        } catch (_) {
-          break;
+      try {
+        json = JSON.parse(response.body);
+      } catch (_) {
+        throw new Error(
+          "JKAnime: respuesta de episodios no válida."
+        );
+      }
+
+      const data = Array.isArray(json.data)
+        ? json.data
+        : [];
+
+      if (page === 1) {
+        total = Number(json.total || 0);
+      }
+
+      if (!data.length) {
+        break;
+      }
+
+      for (const item of data) {
+        const number = Number(item.number);
+
+        if (!Number.isFinite(number)) {
+          continue;
         }
 
-        const data = Array.isArray(json.data) ? json.data : [];
-        if (page === 1) total = Number(json.total || 0);
-        if (!data.length) break;
+        episodes.push({
+          name: item.title || "Episodio " + number,
+          url: link.replace(/\/?$/, "/") + number + "/"
+        });
+      }
 
-        for (const item of data) {
-          const number = Number(item.number);
-          if (!Number.isFinite(number)) continue;
+      if (total && episodes.length >= total) {
+        break;
+      }
 
-          episodes.push({
-            name: item.title || "Episodio " + number,
-            url: link.replace(/\/?$/, "/") + number + "/"
-          });
-        }
-
-        if (total && episodes.length >= total) break;
-        if (data.length < 16) break;
+      if (data.length < 16) {
+        break;
       }
     }
 
     return {
       name,
       link,
-      imageUrl: imageMatch ? this.decodeHtml(imageMatch[1]) : "",
+      imageUrl: imageMatch
+        ? this.decodeHtml(imageMatch[1])
+        : "",
       description: descriptionMatch
         ? this.decodeHtml(descriptionMatch[1])
         : "",
@@ -252,18 +397,26 @@ class DefaultExtension extends MProvider {
     );
 
     if (!iframeMatch) {
-      throw new Error("JKAnime: no se encontró el reproductor Magi.");
+      throw new Error(
+        "JKAnime: no se encontró el reproductor Magi."
+      );
     }
 
-    const playerUrl = iframeMatch[0].replace(/&amp;/g, "&");
+    const playerUrl = iframeMatch[0]
+      .replace(/&amp;/g, "&");
 
-    const response = await new Client().get(playerUrl, {
-      ...this.getHeaders(playerUrl),
-      Referer: episodeUrl
-    });
+    const response = await new Client().get(
+      playerUrl,
+      {
+        ...this.getHeaders(playerUrl),
+        "Referer": episodeUrl
+      }
+    );
 
     if (!response || response.statusCode !== 200) {
-      throw new Error("JKAnime: no se pudo abrir Magi.");
+      throw new Error(
+        "JKAnime: no se pudo abrir Magi."
+      );
     }
 
     const playerHtml = response.body || "";
@@ -273,10 +426,13 @@ class DefaultExtension extends MProvider {
     );
 
     if (!streamMatch) {
-      throw new Error("JKAnime: Magi no devolvió un enlace HLS.");
+      throw new Error(
+        "JKAnime: Magi no devolvió un enlace HLS."
+      );
     }
 
-    const streamUrl = streamMatch[0].replace(/&amp;/g, "&");
+    const streamUrl = streamMatch[0]
+      .replace(/&amp;/g, "&");
 
     return [
       {
@@ -284,7 +440,7 @@ class DefaultExtension extends MProvider {
         originalUrl: streamUrl,
         quality: "HLS",
         headers: {
-          Referer: "https://jkanime.net/",
+          "Referer": "https://jkanime.net/",
           "User-Agent": "Mozilla/5.0"
         }
       }
